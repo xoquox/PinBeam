@@ -1,0 +1,8 @@
+#define HOSTNAME_ESP "ESP-PinBeam" 	//HOSTNAME of of the ESPs
+#define PIN_NETWORK "BEAM"		//Network of the PinBeams
+#define PINBEAM_ID "ID01" 		//ID of THIS ESP!
+
+const char* ssid     = "YOUR SSID";
+const char* password = "SOME PASSWORD YOU USE FOR EVERYTHING";
+const char* mqttHost = "IP or Hostname of your MQTT Broker";
+
