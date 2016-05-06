@@ -9,6 +9,13 @@
 #define BUTTON_DEBOUNCE_MS 50
 
 
+struct config_frame 
+{
+  int dir;
+  int state;
+  Bounce debouncer = Bounce();
+  bool init;
+};
 
 
 static const int pin_lookup_size = 17;
@@ -34,8 +41,8 @@ static const char* pin_lookup[pin_lookup_size] =
   "D0",
 };
 
-Bounce debouncer[pin_lookup_size] = Bounce();
-
+//Bounce debouncer[pin_lookup_size] = Bounce();
+config_frame frame[pin_lookup_size];
 
 
 
@@ -107,7 +114,7 @@ void callback(char* topic, byte* payload, unsigned int length)
       Serial.println(pch);
       pch = strtok(NULL, " ");
       Serial.println(pch);
-      if(strstr(pch, PINBEAM_ID))  
+      if(strstr(pch, PINBEAM_ID))  //Config INPUTs
       {
         Serial.println("Own ID found");
         pch = strtok(NULL, " ");
@@ -116,19 +123,53 @@ void callback(char* topic, byte* payload, unsigned int length)
         id = getID(temp_ID);
         if(strstr(pch, "UP"))
         {
-          pinMode(id,INPUT_PULLUP);
+          //pinMode(id,INPUT_PULLUP);
+          frame[id].dir = INPUT_PULLUP;
           Serial.print(temp_ID);
           Serial.println(" PIN set to PULLUP");
         }
         else
         {
-          pinMode(id,INPUT);
+          //pinMode(id,INPUT);
+          frame[id].dir = INPUT;
           Serial.print(temp_ID);
           Serial.println(" PIN set to INPUT Only");          
         }
-        debouncer[id].attach(id);
-        debouncer[id].interval(BUTTON_DEBOUNCE_MS);
+        //debouncer[id].attach(id);
+        //debouncer[id].interval(BUTTON_DEBOUNCE_MS);
+        pinMode(id,frame[id].dir);
+        frame[id].debouncer.attach(id);
+        frame[id].debouncer.interval(BUTTON_DEBOUNCE_MS);
+        frame[id].debouncer.update();
+        frame[id].state = frame[id].debouncer.read();
       }
+      pch = strtok(buffer, " "); //dreckig
+      pch = strtok(NULL, " "); //dreckig
+      pch = strtok(NULL, " "); //dreckig
+      if(strstr(pch, PINBEAM_ID))  //conifg OUTPUTs
+      {
+        Serial.println("Own ID found");
+        pch = strtok(NULL, " ");
+        strncpy(temp_ID, pch, 2);
+        temp_ID[2] = '\0';
+        id = getID(temp_ID);
+        //pinMode(id,OUTPUT);
+        frame[id].dir = OUTPUT;
+        pinMode(id,frame[id].dir);
+        frame[id].state = digitalRead(id);
+        frame[id].init = true;
+        Serial.print(temp_ID);
+        Serial.println(" PIN set to OUTPUT");
+      }
+    }
+    else if(strstr(buffer, PINBEAM_ID))
+    {
+      pch = strtok(buffer, " ");
+      strncpy(temp_ID, pch, 2);
+      temp_ID[2] = '\0';
+      id = getID(temp_ID);
+      digitalWrite(id, HIGH);
+      
     }
    }
    //pinMode(BUTTON_PIN, INPUT_PULLUP);
@@ -162,13 +203,26 @@ void loop()
 {
   for(int i = 0; i < pin_lookup_size; i++)
   {
-    debouncer[i].update();
-    if(debouncer[i].fell())
+    if((frame[i].dir == OUTPUT) && (frame[i].debouncer.update() || frame[i].init))
     {
-      mqttClient.publish(PIN_NETWORK,PINBEAM_ID );
-      Serial.print("Button presset:");
-      Serial.println(pin_lookup[i]);
-      
+      char buf[256];
+      frame[i].init = false;
+      strcpy(buf,PINBEAM_ID);
+      strcat(buf, " ");
+      strcat(buf, pin_lookup[i]);
+      if(frame[i].debouncer.read())
+      {
+        strcat(buf, " LOW");
+        frame[i].state = LOW;
+      }
+      else
+      {
+        strcat(buf, " HIGH");
+        frame[i].state = HIGH;
+      }
+      mqttClient.publish(PIN_NETWORK,buf);
+      Serial.print("Button changed:");
+      Serial.println(buf);      
     }
   }
   //delay(100);
